@@ -99,20 +99,6 @@ export default async function HomePage({
           )}
         </div>
 
-        <style jsx global>{`
-          .input {
-            width: 100%;
-            border-radius: 0.5rem;
-            border: 1px solid var(--border);
-            background: var(--background);
-            padding: 0.5rem 0.75rem;
-            color: var(--foreground);
-            outline: none;
-          }
-          .input:focus {
-            border-color: var(--primary);
-          }
-        `}</style>
       </form>
 
       {children.length === 0 ? (

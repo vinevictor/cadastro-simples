@@ -219,21 +219,6 @@ export default function ChildForm({ child, action, submitLabel }: Props) {
         </button>
       </div>
 
-      <style jsx global>{`
-        .input {
-          width: 100%;
-          border-radius: 0.5rem;
-          border: 1px solid var(--border);
-          background: var(--background);
-          padding: 0.625rem 0.75rem;
-          color: var(--foreground);
-          outline: none;
-        }
-        .input:focus {
-          border-color: var(--primary);
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
-        }
-      `}</style>
     </form>
   );
 }
