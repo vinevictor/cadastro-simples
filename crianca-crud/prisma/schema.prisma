@@ -1,0 +1,49 @@
+// Prisma schema — banco de dados Postgres (Vercel Postgres / Neon)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Quando você conecta um banco "Vercel Postgres" (Neon) ao projeto na Vercel,
+  // essas duas variáveis são criadas automaticamente:
+  // - POSTGRES_PRISMA_URL: conexão via pooling (usada em runtime)
+  // - POSTGRES_URL_NON_POOLING: conexão direta (usada para migrations)
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model Child {
+  id        String   @id @default(cuid())
+
+  // Dados da criança
+  name      String
+  birthDate DateTime
+
+  // Responsáveis
+  motherName String
+  fatherName String?
+  phones     String // telefones de contato, separados por vírgula
+
+  // Servço/equipe dos pais no encontro
+  team String?
+
+  // Saúde
+  hasAllergy    Boolean @default(false)
+  allergyDesc   String?
+  takesMedication Boolean @default(false)
+  medicationDesc  String?
+  hasDietRestriction Boolean @default(false)
+  dietRestrictionDesc String?
+
+  // Alimentação e permanência
+  willEat Boolean @default(true)
+  days    String // dias que a criança ficará, separados por vírgula (ex: "Sexta,Sábado,Domingo")
+
+  notes String? // observações relevantes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
