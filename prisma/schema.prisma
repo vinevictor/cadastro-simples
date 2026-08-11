@@ -4,17 +4,12 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  // Quando você conecta um banco "Vercel Postgres" (Neon) ao projeto na Vercel,
-  // essas duas variáveis são criadas automaticamente:
-  // - POSTGRES_PRISMA_URL: conexão via pooling (usada em runtime)
-  // - POSTGRES_URL_NON_POOLING: conexão direta (usada para migrations)
-  url       = env("POSTGRES_PRISMA_URL")
-  directUrl = env("POSTGRES_URL_NON_POOLING")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Child {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
   // Dados da criança
   name      String
@@ -29,11 +24,11 @@ model Child {
   team String?
 
   // Saúde
-  hasAllergy    Boolean @default(false)
-  allergyDesc   String?
-  takesMedication Boolean @default(false)
-  medicationDesc  String?
-  hasDietRestriction Boolean @default(false)
+  hasAllergy          Boolean @default(false)
+  allergyDesc         String?
+  takesMedication     Boolean @default(false)
+  medicationDesc      String?
+  hasDietRestriction  Boolean @default(false)
   dietRestrictionDesc String?
 
   // Alimentação e permanência
