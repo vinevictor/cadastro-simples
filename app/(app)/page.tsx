@@ -1,16 +1,19 @@
 import Link from "next/link";
 import { getChildren, getDistinctTeams } from "./children/actions";
+import { getAgeGroups } from "./groups/actions";
 import DeleteButton from "./children/DeleteButton";
+import { getSession } from "@/lib/auth";
 import { calculateAge, formatDate, parseList } from "@/lib/utils";
 
 export default async function HomePage({
-  searchParams,
+  searchParams
 }: {
   searchParams: Promise<{
     q?: string;
     team?: string;
     day?: string;
     health?: string;
+    group?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -18,13 +21,17 @@ export default async function HomePage({
   const team = sp.team ?? "";
   const day = sp.day ?? "";
   const onlyHealthNotes = sp.health === "1";
+  const ageGroupId = sp.group ?? "";
 
-  const [children, teams] = await Promise.all([
-    getChildren({ q, team, day, onlyHealthNotes }),
+  const [children, teams, groups, session] = await Promise.all([
+    getChildren({ q, team, day, onlyHealthNotes, ageGroupId }),
     getDistinctTeams(),
+    getAgeGroups(),
+    getSession()
   ]);
 
-  const hasActiveFilters = q || team || day || onlyHealthNotes;
+  const isAdmin = session?.role === "admin";
+  const hasActiveFilters = q || team || day || onlyHealthNotes || ageGroupId;
 
   return (
     <div>
@@ -35,15 +42,27 @@ export default async function HomePage({
           </h1>
           <p className="text-sm text-muted">
             {children.length}{" "}
-            {children.length === 1 ? "criança encontrada" : "crianças encontradas"}
+            {children.length === 1
+              ? "criança encontrada"
+              : "crianças encontradas"}
           </p>
         </div>
-        <Link
-          href="/children/new"
-          className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-surface transition hover:bg-primary-dark"
-        >
-          + Nova criança
-        </Link>
+        {isAdmin && (
+          <div className="flex gap-2">
+            <Link
+              href="/groups"
+              className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition hover:border-primary hover:text-primary"
+            >
+              Grupos por idade
+            </Link>
+            <Link
+              href="/children/new"
+              className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-surface transition hover:bg-primary-dark"
+            >
+              + Nova criança
+            </Link>
+          </div>
+        )}
       </div>
 
       <form
@@ -74,7 +93,21 @@ export default async function HomePage({
           <option value="Domingo">Domingo</option>
         </select>
 
-        <label className="flex items-center gap-2 text-sm text-foreground sm:col-span-3">
+        <select
+          name="group"
+          defaultValue={ageGroupId}
+          className="input sm:col-span-2"
+        >
+          <option value="">Todos os grupos</option>
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.label ? `${g.label} · ` : ""}
+              {g.minAge}-{g.maxAge} anos
+            </option>
+          ))}
+        </select>
+
+        <label className="flex items-center gap-2 text-sm text-foreground sm:col-span-2">
           <input
             type="checkbox"
             name="health"
@@ -82,7 +115,7 @@ export default async function HomePage({
             defaultChecked={onlyHealthNotes}
             className="h-4 w-4 rounded border-border accent-primary"
           />
-          Mostrar apenas crianças com alergia, medicação ou restrição alimentar
+          Somente com alergia, medicação ou restrição
         </label>
 
         <div className="flex items-center gap-3">
@@ -98,7 +131,6 @@ export default async function HomePage({
             </Link>
           )}
         </div>
-
       </form>
 
       {children.length === 0 ? (
@@ -121,6 +153,11 @@ export default async function HomePage({
               <div
                 key={child.id}
                 className="rounded-2xl border border-border bg-surface p-5"
+                style={
+                  child.ageGroup
+                    ? { borderLeft: `4px solid ${child.ageGroup.color}` }
+                    : undefined
+                }
               >
                 <div className="mb-3 flex items-start justify-between gap-2">
                   <div>
@@ -132,11 +169,29 @@ export default async function HomePage({
                       {formatDate(child.birthDate)}
                     </p>
                   </div>
-                  {child.team && (
-                    <span className="whitespace-nowrap rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                      {child.team}
-                    </span>
-                  )}
+                  <div className="flex flex-col items-end gap-1.5">
+                    {child.team && (
+                      <span className="whitespace-nowrap rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                        {child.team}
+                      </span>
+                    )}
+                    {child.ageGroup && (
+                      <span
+                        className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium"
+                        style={{
+                          backgroundColor: `${child.ageGroup.color}20`,
+                          color: child.ageGroup.color
+                        }}
+                      >
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: child.ageGroup.color }}
+                        />
+                        {child.ageGroup.label ||
+                          `${child.ageGroup.minAge}-${child.ageGroup.maxAge} anos`}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <dl className="space-y-1.5 text-sm">
@@ -144,17 +199,18 @@ export default async function HomePage({
                   {child.fatherName && (
                     <Row label="Pai" value={child.fatherName} />
                   )}
-                  <Row
-                    label="Telefones"
-                    value={phones.join(" · ") || "—"}
-                  />
+                  <Row label="Telefones" value={phones.join(" · ") || "—"} />
                   <Row
                     label="Dias no encontro"
                     value={days.join(", ") || "—"}
                   />
                   <Row
                     label="Alimentação"
-                    value={child.willEat ? "Fará as refeições" : "Não fará as refeições"}
+                    value={
+                      child.willEat
+                        ? "Fará as refeições"
+                        : "Não fará as refeições"
+                    }
                   />
                 </dl>
 
@@ -188,15 +244,17 @@ export default async function HomePage({
                   </p>
                 )}
 
-                <div className="mt-4 flex justify-end gap-2 border-t border-border pt-3">
-                  <Link
-                    href={`/children/${child.id}/edit`}
-                    className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-primary hover:text-primary"
-                  >
-                    Editar
-                  </Link>
-                  <DeleteButton id={child.id} name={child.name} />
-                </div>
+                {isAdmin && (
+                  <div className="mt-4 flex justify-end gap-2 border-t border-border pt-3">
+                    <Link
+                      href={`/children/${child.id}/edit`}
+                      className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-primary hover:text-primary"
+                    >
+                      Editar
+                    </Link>
+                    <DeleteButton id={child.id} name={child.name} />
+                  </div>
+                )}
               </div>
             );
           })}

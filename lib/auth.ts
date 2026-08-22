@@ -4,6 +4,13 @@ import { cookies } from "next/headers";
 const COOKIE_NAME = "session";
 const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7; // 7 dias
 
+export type Role = "admin" | "auxiliar";
+
+export type SessionPayload = {
+  username: string;
+  role: Role;
+};
+
 function getSecretKey() {
   const secret = process.env.AUTH_SECRET;
   if (!secret) {
@@ -14,8 +21,8 @@ function getSecretKey() {
   return new TextEncoder().encode(secret);
 }
 
-export async function createSession(username: string) {
-  const token = await new SignJWT({ username })
+export async function createSession(username: string, role: Role) {
+  const token = await new SignJWT({ username, role })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DURATION_SECONDS}s`)
@@ -36,30 +43,62 @@ export async function destroySession() {
   cookieStore.delete(COOKIE_NAME);
 }
 
-export async function getSession() {
+export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) return null;
 
   try {
     const { payload } = await jwtVerify(token, getSecretKey());
-    return payload as { username: string };
+    // Sessões antigas (criadas antes dos papéis existirem) não têm "role" —
+    // tratamos como admin pra não deslogar quem já estava logado.
+    const role = (payload.role as Role | undefined) ?? "admin";
+    return { username: payload.username as string, role };
   } catch {
     return null;
   }
 }
 
-export function verifyCredentials(username: string, password: string) {
-  const validUser = process.env.ADMIN_USERNAME;
-  const validPass = process.env.ADMIN_PASSWORD;
+/**
+ * Garante que o usuário logado é admin. Lança erro (que deve ser tratado
+ * pela UI) se for auxiliar ou se não houver sessão. Usar no início de toda
+ * server action que cria/edita/exclui dados.
+ */
+export async function requireAdmin(): Promise<SessionPayload> {
+  const session = await getSession();
+  if (!session) {
+    throw new Error("Sessão expirada. Faça login novamente.");
+  }
+  if (session.role !== "admin") {
+    throw new Error("Apenas o administrador pode fazer essa ação.");
+  }
+  return session;
+}
 
-  if (!validUser || !validPass) {
+export function verifyCredentials(
+  username: string,
+  password: string
+): Role | null {
+  const adminUser = process.env.ADMIN_USERNAME;
+  const adminPass = process.env.ADMIN_PASSWORD;
+  const auxUser = process.env.AUX_USERNAME;
+  const auxPass = process.env.AUX_PASSWORD;
+
+  if (!adminUser || !adminPass) {
     throw new Error(
       "ADMIN_USERNAME/ADMIN_PASSWORD não configurados nas variáveis de ambiente."
     );
   }
 
-  return username === validUser && password === validPass;
+  if (username === adminUser && password === adminPass) {
+    return "admin";
+  }
+
+  if (auxUser && auxPass && username === auxUser && password === auxPass) {
+    return "auxiliar";
+  }
+
+  return null;
 }
 
 export const SESSION_COOKIE_NAME = COOKIE_NAME;

@@ -10,9 +10,9 @@ pronto para deploy na **Vercel**.
 > **Sobre o banco de dados:** SQLite (arquivo único) não foi usado porque a
 > Vercel roda em funções serverless com sistema de arquivos somente leitura —
 > um `.db` local não persiste entre execuções e os dados seriam perdidos. Por
-> isso o projeto usa Postgres (via integração **Vercel Postgres**, que por trás
-> é Neon), que é gratuito para esse volume de uso e funciona perfeitamente
-> com Prisma.
+> isso o projeto usa Postgres via **Prisma Postgres** (Storage → Create
+> Database, na própria Vercel), que é gratuito para esse volume de uso e já
+> vem com connection pooling embutido.
 
 ## 1. Rodando localmente
 
@@ -24,9 +24,7 @@ cp .env.example .env
 Preencha o `.env`:
 - `ADMIN_USERNAME` / `ADMIN_PASSWORD`: usuário e senha fixos de login.
 - `AUTH_SECRET`: uma string aleatória longa (gere com `openssl rand -base64 32`).
-- `POSTGRES_PRISMA_URL` / `POSTGRES_URL_NON_POOLING`: veja o passo 2 abaixo
-  para criar um banco gratuito (pode ser o mesmo banco usado em produção,
-  ou um banco separado só para desenvolvimento).
+- `DATABASE_URL`: veja o passo 2 abaixo para criar um banco gratuito.
 
 Depois de configurar o `.env`:
 
@@ -35,48 +33,52 @@ npx prisma db push   # cria a tabela no banco a partir do prisma/schema.prisma
 npm run dev          # http://localhost:3000
 ```
 
-## 2. Criando o banco de dados (Vercel Postgres)
+## 2. Criando o banco de dados (Prisma Postgres)
 
-1. Crie o projeto na Vercel (veja passo 3) ou acesse o dashboard da Vercel.
-2. Vá em **Storage → Create Database → Postgres** (Neon).
-3. Depois de criado, conecte o banco ao seu projeto (aba **Connect Project**).
-   Isso cria automaticamente as variáveis `POSTGRES_PRISMA_URL` e
-   `POSTGRES_URL_NON_POOLING` no projeto.
-4. Para rodar localmente, copie essas duas variáveis do dashboard da Vercel
-   (Settings → Environment Variables) para o seu `.env`.
+1. No dashboard da Vercel, abra o projeto e vá em **Storage → Create Database**.
+2. Escolha **Prisma Postgres** (Free) e confirme a criação.
+3. Clique em **Connect** para vincular o banco ao seu projeto. Isso cria
+   automaticamente a variável `DATABASE_URL` no projeto (ambientes Preview e
+   Production).
+4. Para rodar localmente, copie o valor de `DATABASE_URL` do dashboard da
+   Vercel (Settings → Environment Variables) para o seu `.env`.
 
 Alternativa: você pode usar qualquer Postgres (Neon, Supabase, etc.) — só
-preencher `POSTGRES_PRISMA_URL` e `POSTGRES_URL_NON_POOLING` com a connection
-string do provedor escolhido (pode ser a mesma URL nas duas, se o provedor
-não tiver uma URL "pooled" separada).
+preencher `DATABASE_URL` com a connection string do provedor escolhido.
 
 ## 3. Deploy na Vercel
 
 1. Suba este projeto para um repositório no GitHub/GitLab.
 2. Na Vercel, clique em **Add New → Project** e importe o repositório.
-3. Antes do primeiro deploy (ou logo depois), configure em
-   **Settings → Environment Variables**:
+3. Configure em **Settings → Environment Variables**:
    - `ADMIN_USERNAME`
    - `ADMIN_PASSWORD`
    - `AUTH_SECRET`
-   - `POSTGRES_PRISMA_URL` e `POSTGRES_URL_NON_POOLING` (criadas automaticamente
-     se você conectar um banco Vercel Postgres ao projeto — passo 2).
+   - `DATABASE_URL` (criada automaticamente se você conectar um banco Prisma
+     Postgres ao projeto — passo 2).
 4. Faça o deploy. O script `build` já roda `prisma generate` automaticamente.
 5. Depois do primeiro deploy, crie a tabela no banco rodando **uma vez**,
-   com o `.env` de produção apontando pra ele:
+   com o `.env` local apontando pro banco de produção:
    ```bash
    npx prisma db push
    ```
-   (Ou rode esse comando localmente com `POSTGRES_PRISMA_URL` /
-   `POSTGRES_URL_NON_POOLING` apontando para o banco de produção.)
+6. Se você adicionou/alterou variáveis de ambiente depois do primeiro deploy,
+   faça um **Redeploy** manual (Deployments → ⋯ → Redeploy) para elas
+   entrarem em vigor.
 
 ## Funcionalidades
 
-- **Login** com usuário/senha únicos (variáveis de ambiente), sessão via
-  cookie assinado (JWT), todas as páginas protegidas por middleware.
+- **Login** com dois papéis: **admin** (`ADMIN_USERNAME`/`ADMIN_PASSWORD`,
+  acesso total) e **auxiliar** (`AUX_USERNAME`/`AUX_PASSWORD`, só visualiza —
+  não vê botões de cadastrar/editar/excluir e não consegue acessar essas
+  rotas mesmo digitando a URL direto).
+- **Grupos por faixa etária**: em "Grupos por idade" (só admin) você define
+  faixas (ex: 4 a 6 anos) e uma cor. Ao cadastrar/editar uma criança, o grupo
+  é sugerido automaticamente pela data de nascimento, mas pode ser trocado.
+  A lista mostra a cor do grupo em cada card e permite filtrar por grupo.
 - **Lista** de crianças com todas as informações visíveis em cada card.
 - **Busca** por nome da criança, da mãe ou do pai.
-- **Filtros** por equipe dos pais, dia do encontro e "possui alergia/
+- **Filtros** por equipe, dia do encontro, grupo de idade e "possui alergia/
   medicação/restrição alimentar".
 - **Cadastrar**, **editar** e **excluir** (com confirmação) crianças.
 

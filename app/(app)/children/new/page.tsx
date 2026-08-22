@@ -1,8 +1,11 @@
 import Link from "next/link";
 import ChildForm from "../ChildForm";
 import { createChild } from "../actions";
+import { getAgeGroups } from "../../groups/actions";
 
-export default function NewChildPage() {
+export default async function NewChildPage() {
+  const groups = await getAgeGroups();
+
   return (
     <div>
       <div className="mb-6">
@@ -14,7 +17,11 @@ export default function NewChildPage() {
         </h1>
       </div>
 
-      <ChildForm action={createChild} submitLabel="Cadastrar criança" />
+      <ChildForm
+        groups={groups}
+        action={createChild}
+        submitLabel="Cadastrar criança"
+      />
     </div>
   );
 }

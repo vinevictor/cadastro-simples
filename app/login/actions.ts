@@ -18,20 +18,20 @@ export async function loginAction(
     return { error: "Preencha usuário e senha." };
   }
 
-  let valid = false;
+  let role: ReturnType<typeof verifyCredentials> = null;
   try {
-    valid = verifyCredentials(username, password);
+    role = verifyCredentials(username, password);
   } catch {
     return {
       error:
-        "Credenciais não configuradas no servidor. Defina ADMIN_USERNAME e ADMIN_PASSWORD.",
+        "Credenciais não configuradas no servidor. Defina ADMIN_USERNAME e ADMIN_PASSWORD."
     };
   }
 
-  if (!valid) {
+  if (!role) {
     return { error: "Usuário ou senha inválidos." };
   }
 
-  await createSession(username);
+  await createSession(username, role);
   redirect("/");
 }

@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
@@ -10,6 +11,7 @@ export type ChildFilters = {
   team?: string;
   day?: string;
   onlyHealthNotes?: boolean;
+  ageGroupId?: string;
 };
 
 export async function getChildren(filters: ChildFilters) {
@@ -20,8 +22,8 @@ export async function getChildren(filters: ChildFilters) {
       OR: [
         { name: { contains: filters.q, mode: "insensitive" } },
         { motherName: { contains: filters.q, mode: "insensitive" } },
-        { fatherName: { contains: filters.q, mode: "insensitive" } },
-      ],
+        { fatherName: { contains: filters.q, mode: "insensitive" } }
+      ]
     });
   }
 
@@ -38,14 +40,19 @@ export async function getChildren(filters: ChildFilters) {
       OR: [
         { hasAllergy: true },
         { takesMedication: true },
-        { hasDietRestriction: true },
-      ],
+        { hasDietRestriction: true }
+      ]
     });
+  }
+
+  if (filters.ageGroupId) {
+    AND.push({ ageGroupId: filters.ageGroupId });
   }
 
   return prisma.child.findMany({
     where: { AND },
-    orderBy: { name: "asc" },
+    include: { ageGroup: true },
+    orderBy: { name: "asc" }
   });
 }
 
@@ -53,7 +60,7 @@ export async function getDistinctTeams() {
   const rows = await prisma.child.findMany({
     where: { team: { not: null } },
     select: { team: true },
-    distinct: ["team"],
+    distinct: ["team"]
   });
   return rows
     .map((r) => r.team)
@@ -73,10 +80,12 @@ function buildDataFromForm(formData: FormData) {
   const willEat = formData.get("willEat") === "on";
 
   const birthDateRaw = String(formData.get("birthDate") ?? "");
+  const ageGroupId = String(formData.get("ageGroupId") ?? "").trim() || null;
 
   return {
     name: String(formData.get("name") ?? "").trim(),
     birthDate: new Date(`${birthDateRaw}T00:00:00.000Z`),
+    ageGroupId,
     motherName: String(formData.get("motherName") ?? "").trim(),
     fatherName: String(formData.get("fatherName") ?? "").trim() || null,
     phones: String(formData.get("phones") ?? "").trim(),
@@ -95,14 +104,21 @@ function buildDataFromForm(formData: FormData) {
       : null,
     willEat,
     days: days.join(","),
-    notes: String(formData.get("notes") ?? "").trim() || null,
+    notes: String(formData.get("notes") ?? "").trim() || null
   };
 }
 
 export async function createChild(formData: FormData) {
+  await requireAdmin();
+
   const data = buildDataFromForm(formData);
 
-  if (!data.name || !data.motherName || !data.phones || isNaN(data.birthDate.getTime())) {
+  if (
+    !data.name ||
+    !data.motherName ||
+    !data.phones ||
+    isNaN(data.birthDate.getTime())
+  ) {
     throw new Error(
       "Preencha os campos obrigatórios: nome, data de nascimento, nome da mãe e telefone."
     );
@@ -114,9 +130,16 @@ export async function createChild(formData: FormData) {
 }
 
 export async function updateChild(id: string, formData: FormData) {
+  await requireAdmin();
+
   const data = buildDataFromForm(formData);
 
-  if (!data.name || !data.motherName || !data.phones || isNaN(data.birthDate.getTime())) {
+  if (
+    !data.name ||
+    !data.motherName ||
+    !data.phones ||
+    isNaN(data.birthDate.getTime())
+  ) {
     throw new Error(
       "Preencha os campos obrigatórios: nome, data de nascimento, nome da mãe e telefone."
     );
@@ -128,6 +151,7 @@ export async function updateChild(id: string, formData: FormData) {
 }
 
 export async function deleteChild(id: string) {
+  await requireAdmin();
   await prisma.child.delete({ where: { id } });
   revalidatePath("/");
 }

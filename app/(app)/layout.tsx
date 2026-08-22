@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { logoutAction } from "./logout-action";
+import { getSession } from "@/lib/auth";
 
-export default function AppLayout({
-  children,
+export default async function AppLayout({
+  children
 }: {
   children: React.ReactNode;
 }) {
+  const session = await getSession();
+  const isAuxiliar = session?.role === "auxiliar";
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 border-b border-border bg-surface/90 backdrop-blur">
@@ -17,6 +21,11 @@ export default function AppLayout({
             <span className="font-display text-lg font-semibold text-foreground">
               Crianças do Encontro
             </span>
+            {isAuxiliar && (
+              <span className="rounded-full bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent">
+                Somente leitura
+              </span>
+            )}
           </Link>
 
           <form action={logoutAction}>

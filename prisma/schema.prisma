@@ -1,4 +1,4 @@
-// Prisma schema — banco de dados Postgres (Vercel Postgres / Neon)
+// Prisma schema — banco de dados Postgres (Prisma Postgres / Vercel Storage)
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,12 +8,31 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model AgeGroup {
+  id     String  @id @default(cuid())
+  label  String? // nome opcional, ex: "Pré-adolescentes"
+  minAge Int
+  maxAge Int
+  color  String // cor em hexadecimal, ex: "#8B5CF6"
+
+  children Child[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([minAge, maxAge])
+}
+
 model Child {
   id String @id @default(cuid())
 
   // Dados da criança
   name      String
   birthDate DateTime
+
+  // Grupo por faixa etária (sugerido automaticamente, mas pode ser trocado)
+  ageGroupId String?
+  ageGroup   AgeGroup? @relation(fields: [ageGroupId], references: [id], onDelete: SetNull)
 
   // Responsáveis
   motherName String

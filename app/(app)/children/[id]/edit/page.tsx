@@ -2,14 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import ChildForm from "../../ChildForm";
 import { getChildById, updateChild } from "../../actions";
+import { getAgeGroups } from "../../../groups/actions";
 
 export default async function EditChildPage({
-  params,
+  params
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const child = await getChildById(id);
+  const [child, groups] = await Promise.all([getChildById(id), getAgeGroups()]);
 
   if (!child) notFound();
 
@@ -26,7 +27,12 @@ export default async function EditChildPage({
         </h1>
       </div>
 
-      <ChildForm child={child} action={action} submitLabel="Salvar alterações" />
+      <ChildForm
+        child={child}
+        groups={groups}
+        action={action}
+        submitLabel="Salvar alterações"
+      />
     </div>
   );
 }

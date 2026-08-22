@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { DAY_OPTIONS } from "@/lib/constants";
-import type { Child } from "@prisma/client";
+import { suggestAgeGroup } from "@/lib/age-group";
+import { calculateAge } from "@/lib/utils";
+import type { Child, AgeGroup } from "@prisma/client";
 
 type Props = {
   child?: Child | null;
+  groups: AgeGroup[];
   action: (formData: FormData) => Promise<void>;
   submitLabel: string;
 };
@@ -15,7 +18,12 @@ function toDateInputValue(date: Date | undefined | null) {
   return new Date(date).toISOString().slice(0, 10);
 }
 
-export default function ChildForm({ child, action, submitLabel }: Props) {
+export default function ChildForm({
+  child,
+  groups,
+  action,
+  submitLabel
+}: Props) {
   const [hasAllergy, setHasAllergy] = useState(child?.hasAllergy ?? false);
   const [takesMedication, setTakesMedication] = useState(
     child?.takesMedication ?? false
@@ -23,10 +31,20 @@ export default function ChildForm({ child, action, submitLabel }: Props) {
   const [hasDietRestriction, setHasDietRestriction] = useState(
     child?.hasDietRestriction ?? false
   );
+  const [ageGroupId, setAgeGroupId] = useState(child?.ageGroupId ?? "");
+  const [groupTouched, setGroupTouched] = useState(!!child?.ageGroupId);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   const selectedDays = new Set((child?.days ?? "").split(",").filter(Boolean));
+
+  function handleBirthDateChange(value: string) {
+    if (groupTouched || !value) return;
+    const birthDate = new Date(`${value}T00:00:00.000Z`);
+    if (isNaN(birthDate.getTime())) return;
+    const suggested = suggestAgeGroup(calculateAge(birthDate), groups);
+    setAgeGroupId(suggested?.id ?? "");
+  }
 
   async function handleAction(formData: FormData) {
     setError(null);
@@ -72,9 +90,41 @@ export default function ChildForm({ child, action, submitLabel }: Props) {
               name="birthDate"
               type="date"
               defaultValue={toDateInputValue(child?.birthDate)}
+              onChange={(e) => handleBirthDateChange(e.target.value)}
               required
               className="input"
             />
+          </Field>
+          <Field
+            label="Grupo (faixa etária)"
+            hint="Sugerido automaticamente pela data de nascimento — troque se quiser"
+          >
+            <select
+              name="ageGroupId"
+              value={ageGroupId}
+              onChange={(e) => {
+                setAgeGroupId(e.target.value);
+                setGroupTouched(true);
+              }}
+              className="input"
+            >
+              <option value="">Sem grupo</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.label ? `${g.label} · ` : ""}
+                  {g.minAge}-{g.maxAge} anos
+                </option>
+              ))}
+            </select>
+            {ageGroupId && (
+              <span
+                className="mt-1.5 inline-block h-3 w-3 rounded-full align-middle"
+                style={{
+                  backgroundColor: groups.find((g) => g.id === ageGroupId)
+                    ?.color
+                }}
+              />
+            )}
           </Field>
         </div>
       </section>
@@ -100,7 +150,11 @@ export default function ChildForm({ child, action, submitLabel }: Props) {
               className="input"
             />
           </Field>
-          <Field label="Telefones para contato" required hint="Separe por vírgula, se houver mais de um">
+          <Field
+            label="Telefones para contato"
+            required
+            hint="Separe por vírgula, se houver mais de um"
+          >
             <input
               name="phones"
               defaultValue={child?.phones}
@@ -218,7 +272,6 @@ export default function ChildForm({ child, action, submitLabel }: Props) {
           {pending ? "Salvando..." : submitLabel}
         </button>
       </div>
-
     </form>
   );
 }
@@ -227,7 +280,7 @@ function Field({
   label,
   required,
   hint,
-  children,
+  children
 }: {
   label: string;
   required?: boolean;
@@ -253,7 +306,7 @@ function CheckWithDetail({
   onChange,
   detailName,
   detailLabel,
-  detailDefault,
+  detailDefault
 }: {
   label: string;
   name: string;
